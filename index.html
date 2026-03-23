@@ -327,11 +327,11 @@
     <div class="panel-section">
       <label>Tool</label>
       <div class="tools">
-        <div class="tool-btn active" id="tool-fill" title="Flood fill" onclick="setTool('fill')">
+        <div class="tool-btn" id="tool-fill" title="Flood fill" onclick="setTool('fill')">
           🪣<span class="tip">Fill</span>
         </div>
-        <div class="tool-btn" id="tool-brush" title="Brush" onclick="setTool('brush')">
-          🖌️<span class="tip">Brush</span>
+        <div class="tool-btn active" id="tool-brush" title="Pixel brush" onclick="setTool('brush')">
+          🖌️<span class="tip">Pixel</span>
         </div>
         <div class="tool-btn" id="tool-eraser" title="Eraser" onclick="setTool('eraser')">
           ⬜<span class="tip">Erase</span>
@@ -339,13 +339,6 @@
       </div>
     </div>
 
-    <div class="panel-section">
-      <label>Brush Size</label>
-      <div class="brush-row">
-        <input type="range" id="brush-size" min="1" max="12" value="1" />
-        <span id="brush-size-label">1</span>
-      </div>
-    </div>
 
     <div class="panel-section">
       <label>Color</label>
@@ -396,9 +389,9 @@ const PALETTE_COLORS = [
 // ─────────────────────────────────────────────
 // State
 // ─────────────────────────────────────────────
-let currentTool = 'fill';
+let currentTool = 'brush';
 let currentColor = '#e94560';
-let brushSize = 1;
+
 let zoomLevel = 6;
 let currentPokemonId = null;
 let pixelData = null;       // Uint8ClampedArray of scaled canvas
@@ -552,12 +545,6 @@ function setTool(name) {
   });
 }
 
-// Brush size
-document.getElementById('brush-size').addEventListener('input', e => {
-  brushSize = +e.target.value;
-  document.getElementById('brush-size-label').textContent = brushSize;
-});
-
 // Zoom
 document.getElementById('zoom-slider').addEventListener('input', e => {
   zoomLevel = +e.target.value;
@@ -622,29 +609,32 @@ let isDrawing = false;
 canvas.addEventListener('mousedown', e => {
   if (!pixelData) return;
   isDrawing = true;
-  const [px, py] = getPixelCoords(e);
 
   if (e.button === 2) {
-    // Right-click: pick color
-    const idx = (py * canvasW + px) * 4;
-    const r = pixelData[idx], g = pixelData[idx+1], b = pixelData[idx+2];
-    currentColor = rgbToHex(r, g, b);
+    // Right-click: pick color from logical pixel
+    const [lx, ly] = getLogicalCoords(e);
+    const cx = lx * zoomLevel, cy = ly * zoomLevel;
+    const idx = (cy * canvasW + cx) * 4;
+    currentColor = rgbToHex(pixelData[idx], pixelData[idx+1], pixelData[idx+2]);
     document.getElementById('color-input').value = currentColor;
     updateSelectedSwatch();
     return;
   }
 
   pushUndo();
-  if (currentTool === 'fill') floodFill(px, py, currentColor);
-  else paintAt(px, py);
+  if (currentTool === 'fill') {
+    const [px, py] = getCanvasCoords(e);
+    floodFill(px, py, currentColor);
+  } else {
+    paintLogicalPixel(...getLogicalCoords(e));
+  }
   redraw();
 });
 
 canvas.addEventListener('mousemove', e => {
   if (!isDrawing || !pixelData) return;
   if (currentTool === 'brush' || currentTool === 'eraser') {
-    const [px, py] = getPixelCoords(e);
-    paintAt(px, py);
+    paintLogicalPixel(...getLogicalCoords(e));
     redraw();
   }
 });
@@ -653,42 +643,46 @@ canvas.addEventListener('mouseup', () => { isDrawing = false; });
 canvas.addEventListener('mouseleave', () => { isDrawing = false; });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-function getPixelCoords(e) {
+// Returns raw canvas pixel coords (for flood fill)
+function getCanvasCoords(e) {
   const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const px = Math.floor((e.clientX - rect.left) * scaleX);
-  const py = Math.floor((e.clientY - rect.top) * scaleY);
-  return [
-    Math.max(0, Math.min(canvasW - 1, px)),
-    Math.max(0, Math.min(canvasH - 1, py))
-  ];
+  const px = Math.floor((e.clientX - rect.left) * (canvasW / rect.width));
+  const py = Math.floor((e.clientY - rect.top)  * (canvasH / rect.height));
+  return [Math.max(0, Math.min(canvasW-1, px)), Math.max(0, Math.min(canvasH-1, py))];
+}
+
+// Returns logical sprite pixel coords (snapped to zoom grid)
+function getLogicalCoords(e) {
+  const [cx, cy] = getCanvasCoords(e);
+  const lx = Math.floor(cx / zoomLevel);
+  const ly = Math.floor(cy / zoomLevel);
+  const maxLX = Math.ceil(canvasW / zoomLevel) - 1;
+  const maxLY = Math.ceil(canvasH / zoomLevel) - 1;
+  return [Math.max(0, Math.min(maxLX, lx)), Math.max(0, Math.min(maxLY, ly))];
 }
 
 // ─────────────────────────────────────────────
-// Paint brush
+// Paint one logical sprite pixel (fills the full zoom block)
 // ─────────────────────────────────────────────
-function paintAt(cx, cy) {
+function paintLogicalPixel(lx, ly) {
   const r = parseInt(currentColor.slice(1,3),16);
   const g = parseInt(currentColor.slice(3,5),16);
   const b = parseInt(currentColor.slice(5,7),16);
-  const half = Math.floor(brushSize / 2);
   const isEraser = currentTool === 'eraser';
 
-  for (let dy = -half; dy <= half; dy++) {
-    for (let dx = -half; dx <= half; dx++) {
-      const px = cx + dx, py = cy + dy;
-      if (px < 0 || px >= canvasW || py < 0 || py >= canvasH) continue;
-      const idx = (py * canvasW + px) * 4;
+  // Each logical pixel spans a zoomLevel × zoomLevel block on the canvas
+  for (let dy = 0; dy < zoomLevel; dy++) {
+    for (let dx = 0; dx < zoomLevel; dx++) {
+      const cx = lx * zoomLevel + dx;
+      const cy = ly * zoomLevel + dy;
+      if (cx >= canvasW || cy >= canvasH) continue;
+      const idx = (cy * canvasW + cx) * 4;
 
       // Don't paint over black outline pixels
-      const oR = outlineData[idx], oG = outlineData[idx+1], oB = outlineData[idx+2];
-      if (oR === 0 && oG === 0 && oB === 0) continue;
+      if (outlineData[idx] === 0 && outlineData[idx+1] === 0 && outlineData[idx+2] === 0) continue;
 
       if (isEraser) {
-        pixelData[idx]   = 255;
-        pixelData[idx+1] = 255;
-        pixelData[idx+2] = 255;
+        pixelData[idx] = pixelData[idx+1] = pixelData[idx+2] = 255;
         pixelData[idx+3] = 255;
       } else {
         pixelData[idx]   = r;
