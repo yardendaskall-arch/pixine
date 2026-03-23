@@ -242,6 +242,22 @@
     .swatch:hover { transform: scale(1.15); }
     .swatch.selected { border-color: #fff; }
 
+    .swatch-custom {
+      background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
+      position: relative;
+    }
+    .swatch-custom::after {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      border-radius: 2px;
+      background: var(--custom-color, transparent);
+      transition: background 0.15s;
+    }
+    .swatch-custom.has-custom::after {
+      border: 1.5px solid rgba(255,255,255,0.6);
+    }
+
     /* Brush size */
     .brush-row {
       display: flex;
@@ -503,13 +519,9 @@
 
 
     <div class="panel-section">
-      <label>Color</label>
-      <input type="color" id="color-input" value="#e94560" />
-    </div>
-
-    <div class="panel-section">
       <label>Palette</label>
       <div class="palette" id="palette"></div>
+      <input type="color" id="color-input" value="#e94560" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;" />
     </div>
 
     <div class="panel-section">
@@ -806,8 +818,11 @@ document.getElementById('canvas-wrap').addEventListener('wheel', (e) => {
 }, { passive: false });
 
 // Color picker
-document.getElementById('color-input').addEventListener('input', e => {
+const colorInput = document.getElementById('color-input');
+colorInput.addEventListener('input', e => {
   currentColor = e.target.value;
+  customSwatch.style.setProperty('--custom-color', currentColor);
+  customSwatch.classList.add('has-custom');
   updateSelectedSwatch();
 });
 
@@ -820,16 +835,26 @@ PALETTE_COLORS.forEach(hex => {
   sw.title = hex;
   sw.addEventListener('click', () => {
     currentColor = hex;
-    document.getElementById('color-input').value = hex;
+    colorInput.value = hex;
     updateSelectedSwatch();
   });
   paletteEl.appendChild(sw);
 });
 
+// Custom color swatch (rainbow picker)
+const customSwatch = document.createElement('div');
+customSwatch.className = 'swatch swatch-custom';
+customSwatch.title = 'Pick custom color';
+customSwatch.addEventListener('click', () => colorInput.click());
+paletteEl.appendChild(customSwatch);
+
 function updateSelectedSwatch() {
-  document.querySelectorAll('.swatch').forEach(sw => {
+  document.querySelectorAll('.swatch:not(.swatch-custom)').forEach(sw => {
     sw.classList.toggle('selected', sw.style.background === hexToRgbStyle(currentColor));
   });
+  const isCustom = !PALETTE_COLORS.includes(currentColor.toLowerCase()) &&
+                   !PALETTE_COLORS.map(c=>c.toLowerCase()).includes(currentColor.toLowerCase());
+  customSwatch.classList.toggle('selected', isCustom && customSwatch.classList.contains('has-custom'));
 }
 
 function hexToRgbStyle(hex) {
