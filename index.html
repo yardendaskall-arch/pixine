@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Pixine — Pokemon Coloring Book</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -293,6 +294,167 @@
       .sidebar { width: 130px; }
       .panel { width: 140px; }
     }
+
+    /* ── Modals ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+
+    .modal-box {
+      background: #16213e;
+      border: 2px solid #0f3460;
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 420px;
+      width: 90%;
+    }
+
+    .modal-box h2 {
+      font-size: 1rem;
+      color: #e94560;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 14px;
+    }
+
+    .modal-box input[type=text] {
+      width: 100%;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #0f3460;
+      background: #0f3460;
+      color: #fff;
+      font-size: 0.9rem;
+      outline: none;
+      margin-bottom: 12px;
+    }
+    .modal-box input[type=text]:focus { border-color: #e94560; }
+
+    .modal-actions { display: flex; gap: 8px; }
+    .modal-actions button { flex: 1; }
+
+    .btn-primary {
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #e94560;
+      background: #e94560;
+      color: #fff;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-secondary {
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #0f3460;
+      background: #0f3460;
+      color: #ccc;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-secondary:hover { border-color: #e94560; color: #fff; }
+
+    /* Gallery modal */
+    #gallery-modal .modal-box {
+      max-width: 860px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #gallery-modal .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      flex-shrink: 0;
+    }
+
+    #gallery-modal .modal-header h2 { margin: 0; }
+
+    #gallery-grid {
+      flex: 1;
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px;
+      padding-right: 4px;
+    }
+    #gallery-grid::-webkit-scrollbar { width: 4px; }
+    #gallery-grid::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 2px; }
+
+    .gallery-card {
+      background: #0f3460;
+      border: 1px solid #1a3a6a;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color 0.15s, transform 0.1s;
+    }
+    .gallery-card:hover { border-color: #e94560; transform: scale(1.02); }
+
+    .gallery-card img {
+      width: 100%;
+      aspect-ratio: 1;
+      display: block;
+      image-rendering: pixelated;
+      background: #fff;
+    }
+
+    .gallery-card-info {
+      padding: 6px 8px;
+    }
+    .gallery-card-info .poke-name {
+      font-size: 0.75rem;
+      color: #fff;
+      text-transform: capitalize;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .gallery-card-info .author {
+      font-size: 0.65rem;
+      color: #888;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .gallery-empty {
+      grid-column: 1 / -1;
+      text-align: center;
+      color: #555;
+      padding: 40px;
+      font-size: 0.9rem;
+    }
+
+    .gallery-status {
+      font-size: 0.75rem;
+      color: #888;
+      text-align: center;
+      padding: 6px 0 0;
+      flex-shrink: 0;
+    }
+
+    .action-btn.highlight {
+      border-color: #e94560;
+      color: #e94560;
+    }
+    .action-btn.highlight:hover {
+      background: #e94560;
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -352,6 +514,8 @@
 
     <div class="panel-section">
       <label>Actions</label>
+      <button class="action-btn highlight" onclick="shareDrawing()">↑ Share Drawing</button>
+      <button class="action-btn" onclick="openGallery()">▦ Community Gallery</button>
       <button class="action-btn" onclick="downloadCanvas()">⬇ Save PNG</button>
       <button class="action-btn" onclick="undoAction()">↩ Undo</button>
       <button class="action-btn danger" onclick="clearCanvas()">✕ Clear Colors</button>
@@ -368,7 +532,45 @@
   </aside>
 </div>
 
+<!-- Share modal -->
+<div class="modal-overlay" id="share-modal">
+  <div class="modal-box">
+    <h2>Share Drawing</h2>
+    <p style="font-size:0.8rem;color:#888;margin-bottom:12px">Your colored Pokemon will be added to the public gallery for everyone to see.</p>
+    <input type="text" id="share-author" placeholder="Your name (optional)" maxlength="32" />
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeShareModal()">Cancel</button>
+      <button class="btn-primary" id="share-submit-btn" onclick="submitShare()">Share</button>
+    </div>
+    <div id="share-status" style="font-size:0.75rem;margin-top:10px;text-align:center;min-height:18px"></div>
+  </div>
+</div>
+
+<!-- Gallery modal -->
+<div class="modal-overlay" id="gallery-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>Community Gallery</h2>
+      <div style="display:flex;gap:8px">
+        <button class="btn-secondary" onclick="loadGallery()" style="font-size:0.75rem;padding:5px 10px">Refresh</button>
+        <button class="btn-secondary" onclick="closeGallery()" style="font-size:0.75rem;padding:5px 10px">Close</button>
+      </div>
+    </div>
+    <div id="gallery-grid"><div class="gallery-empty">Loading…</div></div>
+    <div class="gallery-status" id="gallery-status"></div>
+  </div>
+</div>
+
 <script>
+// ─────────────────────────────────────────────
+// Supabase config
+// Replace these two values with your own from https://supabase.com/dashboard/project/_/settings/api
+// ─────────────────────────────────────────────
+const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';   // e.g. https://xxxx.supabase.co
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; // public anon key (safe for browsers)
+
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 // ─────────────────────────────────────────────
 // Config
 // ─────────────────────────────────────────────
@@ -847,6 +1049,143 @@ function rgbToHex(r, g, b) {
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2,'0')).join('');
 }
 
+// ─────────────────────────────────────────────
+// Export canvas at 4× sprite size (crisp, small)
+// ─────────────────────────────────────────────
+function getExportDataUrl() {
+  const EXPORT_ZOOM = 4;
+  const exportW = spriteW * EXPORT_ZOOM;
+  const exportH = spriteH * EXPORT_ZOOM;
+
+  // Put current pixelData into a temp canvas at the current zoom size
+  const tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width = canvasW;
+  tmpCanvas.height = canvasH;
+  const tmpCtx = tmpCanvas.getContext('2d');
+  const imgData = tmpCtx.createImageData(canvasW, canvasH);
+  imgData.data.set(pixelData);
+  tmpCtx.putImageData(imgData, 0, 0);
+
+  // Scale to export size (pixel-perfect)
+  const exportCanvas = document.createElement('canvas');
+  exportCanvas.width = exportW;
+  exportCanvas.height = exportH;
+  const exportCtx = exportCanvas.getContext('2d');
+  exportCtx.imageSmoothingEnabled = false;
+  exportCtx.drawImage(tmpCanvas, 0, 0, exportW, exportH);
+  return exportCanvas.toDataURL('image/png');
+}
+
+// ─────────────────────────────────────────────
+// Share
+// ─────────────────────────────────────────────
+function shareDrawing() {
+  if (!currentPokemonId) {
+    alert('Select and color a Pokemon first!');
+    return;
+  }
+  document.getElementById('share-author').value = '';
+  document.getElementById('share-status').textContent = '';
+  document.getElementById('share-submit-btn').disabled = false;
+  document.getElementById('share-modal').classList.add('open');
+}
+
+function closeShareModal() {
+  document.getElementById('share-modal').classList.remove('open');
+}
+
+async function submitShare() {
+  const btn = document.getElementById('share-submit-btn');
+  const statusEl = document.getElementById('share-status');
+  const author = document.getElementById('share-author').value.trim() || 'Anonymous';
+  const pokemonName = allItems[currentPokemonId - 1]?.querySelector('.name').textContent || `#${currentPokemonId}`;
+
+  btn.disabled = true;
+  statusEl.style.color = '#888';
+  statusEl.textContent = 'Uploading…';
+
+  try {
+    const imageData = getExportDataUrl();
+    const { error } = await db.from('drawings').insert({
+      pokemon_id: currentPokemonId,
+      pokemon_name: pokemonName,
+      image_data: imageData,
+      author_name: author,
+    });
+
+    if (error) throw error;
+
+    statusEl.style.color = '#4caf50';
+    statusEl.textContent = 'Shared! Find it in the Community Gallery.';
+    setTimeout(closeShareModal, 1800);
+  } catch (err) {
+    statusEl.style.color = '#e94560';
+    statusEl.textContent = 'Error: ' + (err.message || 'Could not upload. Check your Supabase config.');
+    btn.disabled = false;
+  }
+}
+
+// ─────────────────────────────────────────────
+// Gallery
+// ─────────────────────────────────────────────
+function openGallery() {
+  document.getElementById('gallery-modal').classList.add('open');
+  loadGallery();
+}
+
+function closeGallery() {
+  document.getElementById('gallery-modal').classList.remove('open');
+}
+
+async function loadGallery() {
+  const grid = document.getElementById('gallery-grid');
+  const statusEl = document.getElementById('gallery-status');
+  grid.innerHTML = '<div class="gallery-empty">Loading…</div>';
+  statusEl.textContent = '';
+
+  try {
+    const { data, error } = await db
+      .from('drawings')
+      .select('id, pokemon_name, image_data, author_name, created_at')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      grid.innerHTML = '<div class="gallery-empty">No drawings yet — be the first to share one!</div>';
+      return;
+    }
+
+    grid.innerHTML = '';
+    data.forEach(row => {
+      const card = document.createElement('div');
+      card.className = 'gallery-card';
+      const date = new Date(row.created_at).toLocaleDateString();
+      card.innerHTML = `
+        <img src="${row.image_data}" alt="${row.pokemon_name}" loading="lazy" />
+        <div class="gallery-card-info">
+          <div class="poke-name">${row.pokemon_name}</div>
+          <div class="author">by ${row.author_name || 'Anonymous'} · ${date}</div>
+        </div>`;
+      grid.appendChild(card);
+    });
+
+    statusEl.textContent = `${data.length} drawing${data.length !== 1 ? 's' : ''} shared`;
+  } catch (err) {
+    grid.innerHTML = `<div class="gallery-empty" style="color:#e94560">Error loading gallery: ${err.message || 'Check your Supabase config.'}</div>`;
+  }
+}
+
+// Close modals on overlay click
+document.getElementById('share-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeShareModal();
+});
+document.getElementById('gallery-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeGallery();
+});
+
+// ─────────────────────────────────────────────
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
   if (e.key === 'f' || e.key === 'F') setTool('fill');
