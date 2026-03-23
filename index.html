@@ -952,11 +952,10 @@ function paintLogicalPixel(lx, ly) {
       if (cx >= canvasW || cy >= canvasH) continue;
       const idx = (cy * canvasW + cx) * 4;
 
-      // Don't paint over black outline pixels
-      if (outlineData[idx] === 0) continue;
+      // Allow painting over everything including outlines
 
       if (isEraser) {
-        // Restore original greyscale — can't erase the Pokemon itself
+        // Restore original pixel (including outlines)
         pixelData[idx]   = outlineData[idx];
         pixelData[idx+1] = outlineData[idx+1];
         pixelData[idx+2] = outlineData[idx+2];
@@ -987,8 +986,7 @@ function floodFill(startX, startY, hexColor) {
   // Same color — nothing to do
   if (targetR === fillR && targetG === fillG && targetB === fillB) return;
 
-  // Don't fill black outline pixels
-  if (targetR === 0 && targetG === 0 && targetB === 0) return;
+  // Allow filling black outline pixels
 
   const visited = new Uint8Array(canvasW * canvasH);
   const stack = [startX + startY * canvasW];
