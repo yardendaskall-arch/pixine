@@ -395,7 +395,9 @@ let currentColor = '#e94560';
 let zoomLevel = 6;
 let currentPokemonId = null;
 let pixelData = null;       // Uint8ClampedArray of scaled canvas
-let outlineData = null;     // original B&W pixel data (scaled)
+let outlineData = null;     // original greyscale pixel data (scaled)
+let paintLayer = null;      // user's painting at logical pixel resolution (sprite size)
+let spriteW = 0, spriteH = 0;
 let canvasW = 0, canvasH = 0;
 let undoStack = [];
 const MAX_UNDO = 30;
@@ -454,6 +456,7 @@ document.getElementById('search').addEventListener('input', (e) => {
 // ─────────────────────────────────────────────
 async function loadPokemon(id) {
   currentPokemonId = id;
+  paintLayer = null; // reset paint when switching Pokemon
   undoStack = [];
 
   // Highlight active
@@ -485,6 +488,12 @@ function processSprite(img) {
   const scale = zoomLevel;
   const sw = img.naturalWidth;
   const sh = img.naturalHeight;
+  spriteW = sw;
+  spriteH = sh;
+  // Initialize paint layer only when loading a new Pokemon
+  if (!paintLayer || paintLayer.length !== sw * sh * 4) {
+    paintLayer = new Uint8ClampedArray(sw * sh * 4);
+  }
 
   // Draw original sprite to offscreen canvas to read pixels
   const off = document.createElement('canvas');
@@ -532,7 +541,34 @@ function processSprite(img) {
 
   // Store pixel data
   pixelData = ctx.getImageData(0, 0, canvasW, canvasH).data.slice();
-  outlineData = pixelData.slice(); // keep original B&W
+  outlineData = pixelData.slice(); // keep original greyscale
+
+  // Reapply the user's paint layer after zoom change
+  applyPaintLayer();
+  redraw();
+}
+
+// Stamp the logical-resolution paint layer onto the canvas-resolution pixelData
+function applyPaintLayer() {
+  for (let ly = 0; ly < spriteH; ly++) {
+    for (let lx = 0; lx < spriteW; lx++) {
+      const li = (ly * spriteW + lx) * 4;
+      if (paintLayer[li + 3] === 0) continue; // this logical pixel wasn't painted
+      for (let dy = 0; dy < zoomLevel; dy++) {
+        for (let dx = 0; dx < zoomLevel; dx++) {
+          const cx = lx * zoomLevel + dx;
+          const cy = ly * zoomLevel + dy;
+          if (cx >= canvasW || cy >= canvasH) continue;
+          const idx = (cy * canvasW + cx) * 4;
+          if (outlineData[idx] === 0) continue; // don't paint over outlines
+          pixelData[idx]   = paintLayer[li];
+          pixelData[idx+1] = paintLayer[li+1];
+          pixelData[idx+2] = paintLayer[li+2];
+          pixelData[idx+3] = 255;
+        }
+      }
+    }
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -670,7 +706,18 @@ function paintLogicalPixel(lx, ly) {
   const b = parseInt(currentColor.slice(5,7),16);
   const isEraser = currentTool === 'eraser';
 
-  // Each logical pixel spans a zoomLevel × zoomLevel block on the canvas
+  // Update the logical paint layer
+  const li = (ly * spriteW + lx) * 4;
+  if (isEraser) {
+    paintLayer[li+3] = 0; // mark as unpainted
+  } else {
+    paintLayer[li]   = r;
+    paintLayer[li+1] = g;
+    paintLayer[li+2] = b;
+    paintLayer[li+3] = 255;
+  }
+
+  // Apply to the canvas-resolution pixelData
   for (let dy = 0; dy < zoomLevel; dy++) {
     for (let dx = 0; dx < zoomLevel; dx++) {
       const cx = lx * zoomLevel + dx;
@@ -679,7 +726,7 @@ function paintLogicalPixel(lx, ly) {
       const idx = (cy * canvasW + cx) * 4;
 
       // Don't paint over black outline pixels
-      if (outlineData[idx] === 0 && outlineData[idx+1] === 0 && outlineData[idx+2] === 0) continue;
+      if (outlineData[idx] === 0) continue;
 
       if (isEraser) {
         // Restore original greyscale — can't erase the Pokemon itself
@@ -750,13 +797,15 @@ function floodFill(startX, startY, hexColor) {
 // Undo
 // ─────────────────────────────────────────────
 function pushUndo() {
-  undoStack.push(pixelData.slice());
+  undoStack.push({ pixelData: pixelData.slice(), paintLayer: paintLayer.slice() });
   if (undoStack.length > MAX_UNDO) undoStack.shift();
 }
 
 function undoAction() {
   if (!undoStack.length) return;
-  pixelData = undoStack.pop();
+  const state = undoStack.pop();
+  pixelData = state.pixelData;
+  paintLayer = state.paintLayer;
   redraw();
 }
 
@@ -776,6 +825,7 @@ function clearCanvas() {
   if (!outlineData) return;
   pushUndo();
   pixelData = outlineData.slice();
+  paintLayer = new Uint8ClampedArray(spriteW * spriteH * 4);
   redraw();
 }
 
