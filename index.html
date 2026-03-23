@@ -682,8 +682,11 @@ function paintLogicalPixel(lx, ly) {
       if (outlineData[idx] === 0 && outlineData[idx+1] === 0 && outlineData[idx+2] === 0) continue;
 
       if (isEraser) {
-        pixelData[idx] = pixelData[idx+1] = pixelData[idx+2] = 255;
-        pixelData[idx+3] = 255;
+        // Restore original greyscale — can't erase the Pokemon itself
+        pixelData[idx]   = outlineData[idx];
+        pixelData[idx+1] = outlineData[idx+1];
+        pixelData[idx+2] = outlineData[idx+2];
+        pixelData[idx+3] = outlineData[idx+3];
       } else {
         pixelData[idx]   = r;
         pixelData[idx+1] = g;
