@@ -501,7 +501,8 @@ function processSprite(img) {
   octx.drawImage(img, 0, 0);
   const srcData = octx.getImageData(0, 0, sw, sh).data;
 
-  // Convert to B&W: transparent/very-light → white, else → black
+  // Convert to greyscale with black outlines:
+  // transparent → white, dark pixels → black outline, colored pixels → greyscale shade
   const bwCanvas = document.createElement('canvas');
   bwCanvas.width = sw;
   bwCanvas.height = sh;
@@ -509,24 +510,20 @@ function processSprite(img) {
   const bwImg = bwCtx.createImageData(sw, sh);
   for (let i = 0; i < srcData.length; i += 4) {
     const r = srcData[i], g = srcData[i+1], b = srcData[i+2], a = srcData[i+3];
-    const brightness = (r + g + b) / 3;
-    // Transparent pixels → white
+    // Transparent pixels → white background
     if (a < 64) {
       bwImg.data[i]   = 255;
       bwImg.data[i+1] = 255;
       bwImg.data[i+2] = 255;
       bwImg.data[i+3] = 255;
-    } else if (brightness > 200 && a < 180) {
-      // Semi-transparent light → white
-      bwImg.data[i]   = 255;
-      bwImg.data[i+1] = 255;
-      bwImg.data[i+2] = 255;
-      bwImg.data[i+3] = 255;
     } else {
-      // Opaque pixel → black
-      bwImg.data[i]   = 0;
-      bwImg.data[i+1] = 0;
-      bwImg.data[i+2] = 0;
+      // Luminance-weighted greyscale
+      const grey = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+      // Dark pixels are outlines → keep black; lighter pixels → their grey shade
+      const out = grey < 85 ? 0 : grey;
+      bwImg.data[i]   = out;
+      bwImg.data[i+1] = out;
+      bwImg.data[i+2] = out;
       bwImg.data[i+3] = 255;
     }
   }
