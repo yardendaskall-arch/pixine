@@ -471,6 +471,139 @@
       background: #e94560;
       color: #fff;
     }
+
+    /* ── Create modal ── */
+    .modal-box-wide {
+      max-width: 780px;
+      width: 95%;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .create-body {
+      display: flex;
+      gap: 18px;
+      flex: 1;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .create-canvas-col {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #create-canvas {
+      border: 2px solid #0f3460;
+      border-radius: 4px;
+      cursor: crosshair;
+      display: block;
+      image-rendering: pixelated;
+    }
+
+    .create-hint {
+      font-size: 0.65rem;
+      color: #555;
+      text-align: center;
+    }
+
+    .create-controls-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      min-width: 0;
+    }
+
+    .create-controls-col::-webkit-scrollbar { width: 4px; }
+    .create-controls-col::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 2px; }
+
+    .create-section-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+
+    .create-divider {
+      border: none;
+      border-top: 1px solid #0f3460;
+      margin: 2px 0;
+    }
+
+    #gemini-key, #pokemon-desc {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid #0f3460;
+      background: #0f3460;
+      color: #fff;
+      font-size: 0.85rem;
+      outline: none;
+      font-family: inherit;
+    }
+    #gemini-key:focus, #pokemon-desc:focus { border-color: #e94560; }
+    #pokemon-desc { resize: vertical; min-height: 64px; }
+
+    #generate-status {
+      font-size: 0.75rem;
+      min-height: 18px;
+      text-align: center;
+    }
+
+    .create-use-btn {
+      margin-top: auto;
+      padding-top: 8px;
+    }
+
+    .ctool-row { display: flex; gap: 6px; }
+    .ctool-btn {
+      flex: 1;
+      padding: 6px 4px;
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      background: #0f3460;
+      color: #ccc;
+      font-size: 1rem;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+    }
+    .ctool-btn .tip { display: block; font-size: 0.55rem; text-transform: uppercase; margin-top: 2px; }
+    .ctool-btn:hover { border-color: #e94560; color: #fff; }
+    .ctool-btn.active { background: #e94560; border-color: #e94560; color: #fff; }
+
+    .create-btn-sm {
+      width: 100%;
+      padding: 7px;
+      border-radius: 6px;
+      border: 1px solid #0f3460;
+      background: #0f3460;
+      color: #ccc;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .create-btn-sm:hover { border-color: #e94560; color: #fff; }
+
+    .header-create-btn {
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid #e94560;
+      background: transparent;
+      color: #e94560;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .header-create-btn:hover { background: #e94560; color: #fff; }
   </style>
 </head>
 <body>
@@ -480,6 +613,7 @@
   <div class="search-wrap">
     <input type="text" id="search" placeholder="Search Pokemon…" autocomplete="off" />
   </div>
+  <button class="header-create-btn" onclick="openCreateModal()">+ Design Pokemon</button>
 </header>
 
 <div class="main">
@@ -542,6 +676,57 @@
     </div>
 
   </aside>
+</div>
+
+<!-- Create / Design modal -->
+<div class="modal-overlay" id="create-modal">
+  <div class="modal-box modal-box-wide">
+    <div class="modal-header">
+      <h2>Design Your Pokemon</h2>
+      <button class="btn-secondary" onclick="closeCreateModal()" style="font-size:0.75rem;padding:5px 10px">Close</button>
+    </div>
+    <div class="create-body">
+
+      <!-- Left: pixel grid canvas -->
+      <div class="create-canvas-col">
+        <canvas id="create-canvas" width="448" height="448"></canvas>
+        <div class="create-hint">Left-click draw · Right-click erase · Scroll canvas to pan</div>
+      </div>
+
+      <!-- Right: controls -->
+      <div class="create-controls-col">
+
+        <div>
+          <div class="create-section-label">Drawing tool</div>
+          <div class="ctool-row">
+            <div class="ctool-btn active" id="ctool-pencil" onclick="setCreateTool('pencil')">✏️<span class="tip">Draw</span></div>
+            <div class="ctool-btn" id="ctool-eraser" onclick="setCreateTool('eraser')">⬜<span class="tip">Erase</span></div>
+            <div class="ctool-btn" id="ctool-fill"   onclick="setCreateTool('fill')">🪣<span class="tip">Fill</span></div>
+          </div>
+        </div>
+
+        <button class="create-btn-sm" onclick="clearCreateCanvas()">✕ Clear canvas</button>
+
+        <hr class="create-divider" />
+
+        <div>
+          <div class="create-section-label">AI Generator — Gemini</div>
+          <input type="password" id="gemini-key" placeholder="Gemini API key (stored in browser only)" autocomplete="off" />
+          <div style="font-size:0.65rem;color:#555;margin:-6px 0 6px">Get a free key at <strong style="color:#888">aistudio.google.com</strong> → Get API key</div>
+          <textarea id="pokemon-desc" placeholder="Describe your Pokemon idea…&#10;e.g. A small fire fox with a bushy tail and pointy ears"></textarea>
+          <button class="btn-primary" id="generate-btn" onclick="generateWithAI()" style="width:100%;margin-top:6px">✦ Generate with AI</button>
+          <div id="generate-status" style="margin-top:6px"></div>
+        </div>
+
+        <hr class="create-divider" />
+
+        <div class="create-use-btn">
+          <button class="btn-primary" onclick="useCustomSprite()" style="width:100%;padding:10px;font-size:0.9rem">Color This Pokemon →</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Share modal -->
@@ -1207,6 +1392,251 @@ document.getElementById('share-modal').addEventListener('click', e => {
 document.getElementById('gallery-modal').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeGallery();
 });
+
+// ═════════════════════════════════════════════
+// CUSTOM POKEMON DESIGNER
+// ═════════════════════════════════════════════
+const CREATE_SIZE = 32;
+const CELL_PX = 14; // pixels per cell on the create canvas
+
+let customGrid = new Uint8Array(CREATE_SIZE * CREATE_SIZE); // 0=white 1=black
+let createTool = 'pencil';
+let isCreateDrawing = false;
+let createDrawValue = 1;
+
+const createCanvas = document.getElementById('create-canvas');
+const createCtx = createCanvas.getContext('2d');
+
+// ── Render ─────────────────────────────────────
+function renderCreateCanvas() {
+  createCtx.fillStyle = '#ffffff';
+  createCtx.fillRect(0, 0, createCanvas.width, createCanvas.height);
+
+  for (let y = 0; y < CREATE_SIZE; y++) {
+    for (let x = 0; x < CREATE_SIZE; x++) {
+      if (customGrid[y * CREATE_SIZE + x] === 1) {
+        createCtx.fillStyle = '#000000';
+        createCtx.fillRect(x * CELL_PX, y * CELL_PX, CELL_PX, CELL_PX);
+      }
+    }
+  }
+
+  // Grid lines
+  createCtx.strokeStyle = '#dde';
+  createCtx.lineWidth = 0.5;
+  for (let i = 0; i <= CREATE_SIZE; i++) {
+    createCtx.beginPath();
+    createCtx.moveTo(i * CELL_PX, 0);
+    createCtx.lineTo(i * CELL_PX, CREATE_SIZE * CELL_PX);
+    createCtx.stroke();
+    createCtx.beginPath();
+    createCtx.moveTo(0, i * CELL_PX);
+    createCtx.lineTo(CREATE_SIZE * CELL_PX, i * CELL_PX);
+    createCtx.stroke();
+  }
+}
+
+// ── Mouse drawing ───────────────────────────────
+function getCellFromEvent(e) {
+  const rect = createCanvas.getBoundingClientRect();
+  const scaleX = createCanvas.width / rect.width;
+  const scaleY = createCanvas.height / rect.height;
+  const cx = Math.floor((e.clientX - rect.left) * scaleX / CELL_PX);
+  const cy = Math.floor((e.clientY - rect.top)  * scaleY / CELL_PX);
+  return [Math.max(0, Math.min(CREATE_SIZE-1, cx)), Math.max(0, Math.min(CREATE_SIZE-1, cy))];
+}
+
+createCanvas.addEventListener('mousedown', e => {
+  e.preventDefault();
+  isCreateDrawing = true;
+  const [cx, cy] = getCellFromEvent(e);
+  if (createTool === 'fill') {
+    createFloodFill(cx, cy, e.button === 2 ? 0 : 1);
+  } else {
+    createDrawValue = e.button === 2 ? 0 : (createTool === 'eraser' ? 0 : 1);
+    customGrid[cy * CREATE_SIZE + cx] = createDrawValue;
+  }
+  renderCreateCanvas();
+});
+
+createCanvas.addEventListener('mousemove', e => {
+  if (!isCreateDrawing || createTool === 'fill') return;
+  const [cx, cy] = getCellFromEvent(e);
+  customGrid[cy * CREATE_SIZE + cx] = createDrawValue;
+  renderCreateCanvas();
+});
+
+createCanvas.addEventListener('mouseup',    () => { isCreateDrawing = false; });
+createCanvas.addEventListener('mouseleave', () => { isCreateDrawing = false; });
+createCanvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// ── Tools ───────────────────────────────────────
+function setCreateTool(name) {
+  createTool = name;
+  ['pencil','eraser','fill'].forEach(t => {
+    document.getElementById(`ctool-${t}`).classList.toggle('active', t === name);
+  });
+}
+
+function clearCreateCanvas() {
+  customGrid = new Uint8Array(CREATE_SIZE * CREATE_SIZE);
+  renderCreateCanvas();
+}
+
+// ── Flood fill on grid ──────────────────────────
+function createFloodFill(startX, startY, fillVal) {
+  const target = customGrid[startY * CREATE_SIZE + startX];
+  if (target === fillVal) return;
+  const visited = new Uint8Array(CREATE_SIZE * CREATE_SIZE);
+  const stack = [startX + startY * CREATE_SIZE];
+  visited[startX + startY * CREATE_SIZE] = 1;
+  while (stack.length) {
+    const pos = stack.pop();
+    const x = pos % CREATE_SIZE, y = (pos / CREATE_SIZE) | 0;
+    customGrid[pos] = fillVal;
+    for (const [nx, ny] of [[x-1,y],[x+1,y],[x,y-1],[x,y+1]]) {
+      if (nx < 0 || nx >= CREATE_SIZE || ny < 0 || ny >= CREATE_SIZE) continue;
+      const npos = nx + ny * CREATE_SIZE;
+      if (!visited[npos] && customGrid[npos] === target) {
+        visited[npos] = 1;
+        stack.push(npos);
+      }
+    }
+  }
+}
+
+// ── Modal open/close ────────────────────────────
+function openCreateModal() {
+  // Restore saved API key
+  const saved = sessionStorage.getItem('gemini-key');
+  if (saved) document.getElementById('gemini-key').value = saved;
+  renderCreateCanvas();
+  document.getElementById('create-modal').classList.add('open');
+}
+
+function closeCreateModal() {
+  document.getElementById('create-modal').classList.remove('open');
+}
+
+document.getElementById('create-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeCreateModal();
+});
+
+// ── AI Generation (Gemini) ──────────────────────
+async function generateWithAI() {
+  const apiKey = document.getElementById('gemini-key').value.trim();
+  const desc   = document.getElementById('pokemon-desc').value.trim();
+  if (!apiKey) return setGenStatus('Enter your Gemini API key above.', 'error');
+  if (!desc)   return setGenStatus('Describe your Pokemon first.', 'error');
+
+  sessionStorage.setItem('gemini-key', apiKey);
+
+  const btn = document.getElementById('generate-btn');
+  btn.disabled = true;
+  setGenStatus('Generating… this may take a few seconds', 'loading');
+
+  const prompt = `You are a pixel art generator. Create a 32x32 pixel art Pokemon sprite outline of: ${desc}
+
+Output ONLY a JSON array of exactly 1024 integers (no other text).
+Rules:
+- 0 = white/empty pixel, 1 = black pixel
+- The array is row-by-row, left-to-right, top-to-bottom (first 32 values = top row)
+- Draw a clear Pokemon-like silhouette with a solid outline and some interior detail
+- Leave at least 2 pixels of empty border around all edges
+- Make it recognizable and creative
+
+Start your response with [ and end with ]. Nothing else.`;
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.8, maxOutputTokens: 8192 }
+        })
+      }
+    );
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || `API error ${res.status}`);
+    }
+
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    // Extract the JSON array (be lenient about surrounding text)
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error('No pixel array found in response. Try again.');
+
+    let arr;
+    try { arr = JSON.parse(match[0]); } catch { throw new Error('Could not parse pixel array. Try again.'); }
+
+    if (!Array.isArray(arr) || arr.length !== 1024)
+      throw new Error(`Got ${arr?.length ?? '?'} pixels instead of 1024. Try again.`);
+
+    customGrid = new Uint8Array(arr.map(v => (v ? 1 : 0)));
+    renderCreateCanvas();
+    setGenStatus('Done! Edit it or click "Color This Pokemon →"', 'success');
+  } catch (err) {
+    setGenStatus('Error: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function setGenStatus(msg, type) {
+  const el = document.getElementById('generate-status');
+  el.textContent = msg;
+  el.style.color = type === 'error' ? '#e94560' : type === 'success' ? '#4caf50' : '#888';
+}
+
+// ── Load custom sprite into coloring canvas ──────
+function useCustomSprite() {
+  if (!customGrid.some(v => v === 1)) {
+    return setGenStatus('Draw something or generate first!', 'error');
+  }
+
+  currentPokemonId = null;
+  spriteW = CREATE_SIZE;
+  spriteH = CREATE_SIZE;
+  undoStack = [];
+  paintLayer = new Uint8ClampedArray(CREATE_SIZE * CREATE_SIZE * 4);
+
+  canvasW = CREATE_SIZE * zoomLevel;
+  canvasH = CREATE_SIZE * zoomLevel;
+  canvas.width  = canvasW;
+  canvas.height = canvasH;
+
+  // Build scaled pixel data from grid (1=black outline, 0=white fill)
+  const imgData = ctx.createImageData(canvasW, canvasH);
+  for (let ly = 0; ly < CREATE_SIZE; ly++) {
+    for (let lx = 0; lx < CREATE_SIZE; lx++) {
+      const v = customGrid[ly * CREATE_SIZE + lx] ? 0 : 255; // 1→black, 0→white
+      for (let dy = 0; dy < zoomLevel; dy++) {
+        for (let dx = 0; dx < zoomLevel; dx++) {
+          const idx = ((ly * zoomLevel + dy) * canvasW + (lx * zoomLevel + dx)) * 4;
+          imgData.data[idx] = imgData.data[idx+1] = imgData.data[idx+2] = v;
+          imgData.data[idx+3] = 255;
+        }
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  pixelData   = ctx.getImageData(0, 0, canvasW, canvasH).data.slice();
+  outlineData = pixelData.slice();
+
+  allItems.forEach(el => el.classList.remove('active'));
+  document.getElementById('loading-msg').style.display = 'none';
+  document.getElementById('canvas-wrap').style.display = '';
+
+  closeCreateModal();
+  redraw();
+}
 
 // ─────────────────────────────────────────────
 // Keyboard shortcuts
