@@ -1571,15 +1571,19 @@ Start your response with [ and end with ]. Nothing else.`;
     // Strip markdown code fences
     text = text.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '');
 
-    const match = text.match(/\[[\s\S]*?\]/s) || text.match(/\[[\s\S]*\]/);
-    if (!match) {
-      // Show first 300 chars of response on-screen for mobile debugging
-      setGenStatus('Parse error. Response started with: ' + text.slice(0, 200), 'error');
-      return;
+    // Find the JSON array by walking brackets (handles very long arrays)
+    const startIdx = text.indexOf('[');
+    if (startIdx === -1) throw new Error('No array found in response. Try again.');
+    let depth = 0, endIdx = -1;
+    for (let i = startIdx; i < text.length; i++) {
+      if (text[i] === '[') depth++;
+      else if (text[i] === ']') { if (--depth === 0) { endIdx = i; break; } }
     }
+    if (endIdx === -1) throw new Error('Array not closed in response. Try again.');
 
     let arr;
-    try { arr = JSON.parse(match[0]); } catch { throw new Error('Could not parse pixel array. Try again.'); }
+    try { arr = JSON.parse(text.slice(startIdx, endIdx + 1)); }
+    catch { throw new Error('Could not parse pixel array. Try again.'); }
 
     // If too short/long, try to pad/trim to 1024
     if (!Array.isArray(arr)) throw new Error('Response was not an array. Try again.');
