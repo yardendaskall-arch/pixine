@@ -1549,7 +1549,12 @@ Start your response with [ and end with ]. Nothing else.`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.8, maxOutputTokens: 8192 }
+          generationConfig: {
+            temperature: 0.8,
+            maxOutputTokens: 16384,
+            responseMimeType: 'application/json',
+            thinkingConfig: { thinkingBudget: 0 }
+          }
         })
       }
     );
