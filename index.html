@@ -1560,15 +1560,22 @@ Start your response with [ and end with ]. Nothing else.`;
     }
 
     const data = await res.json();
-    let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    // Strip markdown code fences (```json ... ``` or ``` ... ```)
+    // Gemini 2.5 thinking models return multiple parts — join all non-thought text parts
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    let text = parts
+      .filter(p => !p.thought && typeof p.text === 'string')
+      .map(p => p.text)
+      .join('');
+
+    // Strip markdown code fences
     text = text.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '');
 
-    const match = text.match(/\[[\s\S]*\]/);
+    const match = text.match(/\[[\s\S]*?\]/s) || text.match(/\[[\s\S]*\]/);
     if (!match) {
-      console.log('RAW GEMINI RESPONSE:', JSON.stringify(text));
-      throw new Error('No pixel array found. Check browser console (F12) for raw response.');
+      // Show first 300 chars of response on-screen for mobile debugging
+      setGenStatus('Parse error. Response started with: ' + text.slice(0, 200), 'error');
+      return;
     }
 
     let arr;
