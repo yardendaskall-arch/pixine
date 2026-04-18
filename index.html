@@ -1560,17 +1560,21 @@ Start your response with [ and end with ]. Nothing else.`;
     }
 
     const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    // Extract the JSON array (be lenient about surrounding text)
+    // Strip markdown code fences (```json ... ``` or ``` ... ```)
+    text = text.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '');
+
     const match = text.match(/\[[\s\S]*\]/);
     if (!match) throw new Error('No pixel array found in response. Try again.');
 
     let arr;
     try { arr = JSON.parse(match[0]); } catch { throw new Error('Could not parse pixel array. Try again.'); }
 
-    if (!Array.isArray(arr) || arr.length !== 1024)
-      throw new Error(`Got ${arr?.length ?? '?'} pixels instead of 1024. Try again.`);
+    // If too short/long, try to pad/trim to 1024
+    if (!Array.isArray(arr)) throw new Error('Response was not an array. Try again.');
+    while (arr.length < 1024) arr.push(0);
+    if (arr.length > 1024) arr = arr.slice(0, 1024);
 
     customGrid = new Uint8Array(arr.map(v => (v ? 1 : 0)));
     renderCreateCanvas();
