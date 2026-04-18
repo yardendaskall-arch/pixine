@@ -711,8 +711,6 @@
 
         <div>
           <div class="create-section-label">AI Generator — Gemini</div>
-          <input type="password" id="gemini-key" placeholder="Gemini API key (stored in browser only)" autocomplete="off" />
-          <div style="font-size:0.65rem;color:#555;margin:-6px 0 6px">Get a free key at <strong style="color:#888">aistudio.google.com</strong> → Get API key</div>
           <textarea id="pokemon-desc" placeholder="Describe your Pokemon idea…&#10;e.g. A small fire fox with a bushy tail and pointy ears"></textarea>
           <button class="btn-primary" id="generate-btn" onclick="generateWithAI()" style="width:100%;margin-top:6px">✦ Generate with AI</button>
           <div id="generate-status" style="margin-top:6px"></div>
@@ -1507,9 +1505,6 @@ function createFloodFill(startX, startY, fillVal) {
 
 // ── Modal open/close ────────────────────────────
 function openCreateModal() {
-  // Restore saved API key
-  const saved = sessionStorage.getItem('gemini-key');
-  if (saved) document.getElementById('gemini-key').value = saved;
   renderCreateCanvas();
   document.getElementById('create-modal').classList.add('open');
 }
@@ -1522,14 +1517,13 @@ document.getElementById('create-modal').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeCreateModal();
 });
 
+const GEMINI_API_KEY = 'AIzaSyD6IWbdz5VRagi4MircH0fgCibOr8IYvfI';
+
 // ── AI Generation (Gemini) ──────────────────────
 async function generateWithAI() {
-  const apiKey = document.getElementById('gemini-key').value.trim();
+  const apiKey = GEMINI_API_KEY;
   const desc   = document.getElementById('pokemon-desc').value.trim();
-  if (!apiKey) return setGenStatus('Enter your Gemini API key above.', 'error');
-  if (!desc)   return setGenStatus('Describe your Pokemon first.', 'error');
-
-  sessionStorage.setItem('gemini-key', apiKey);
+  if (!desc) return setGenStatus('Describe your Pokemon first.', 'error');
 
   const btn = document.getElementById('generate-btn');
   btn.disabled = true;
