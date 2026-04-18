@@ -1566,7 +1566,10 @@ Start your response with [ and end with ]. Nothing else.`;
     text = text.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '');
 
     const match = text.match(/\[[\s\S]*\]/);
-    if (!match) throw new Error('No pixel array found in response. Try again.');
+    if (!match) {
+      console.log('RAW GEMINI RESPONSE:', JSON.stringify(text));
+      throw new Error('No pixel array found. Check browser console (F12) for raw response.');
+    }
 
     let arr;
     try { arr = JSON.parse(match[0]); } catch { throw new Error('Could not parse pixel array. Try again.'); }
