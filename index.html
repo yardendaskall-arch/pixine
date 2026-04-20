@@ -1394,8 +1394,8 @@ document.getElementById('gallery-modal').addEventListener('click', e => {
 // ═════════════════════════════════════════════
 // CUSTOM POKEMON DESIGNER
 // ═════════════════════════════════════════════
-const CREATE_SIZE = 32;
-const CELL_PX = 14; // pixels per cell on the create canvas
+const CREATE_SIZE = 16;
+const CELL_PX = 28; // pixels per cell on the create canvas
 
 let customGrid = new Uint8Array(CREATE_SIZE * CREATE_SIZE); // 0=white 1=black
 let createTool = 'pencil';
@@ -1526,15 +1526,14 @@ async function generateWithAI() {
   btn.disabled = true;
   setGenStatus('Generating… this may take a few seconds', 'loading');
 
-  const prompt = `You are a pixel art generator. Create a 32x32 pixel art Pokemon sprite outline of: ${desc}
+  const prompt = `You are a pixel art generator. Create a 16x16 pixel art Pokemon sprite of: ${desc}
 
-Output ONLY a JSON array of exactly 1024 integers (no other text).
+Output ONLY a JSON array of exactly 256 integers (no other text).
 Rules:
 - 0 = white/empty pixel, 1 = black pixel
-- The array is row-by-row, left-to-right, top-to-bottom (first 32 values = top row)
-- Draw a clear Pokemon-like silhouette with a solid outline and some interior detail
-- Leave at least 2 pixels of empty border around all edges
-- Make it recognizable and creative
+- The array is row-by-row, left-to-right, top-to-bottom (first 16 values = top row)
+- Draw a clear recognizable Pokemon-like silhouette with outline and some interior detail
+- Leave 1 pixel of empty border around all edges
 
 Start your response with [ and end with ]. Nothing else.`;
 
@@ -1578,8 +1577,8 @@ Start your response with [ and end with ]. Nothing else.`;
 
     // If too short/long, try to pad/trim to 1024
     if (!Array.isArray(arr)) throw new Error('Response was not an array. Try again.');
-    while (arr.length < 1024) arr.push(0);
-    if (arr.length > 1024) arr = arr.slice(0, 1024);
+    while (arr.length < 256) arr.push(0);
+    if (arr.length > 256) arr = arr.slice(0, 256);
 
     customGrid = new Uint8Array(arr.map(v => (v ? 1 : 0)));
     renderCreateCanvas();
