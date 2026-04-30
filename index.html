@@ -700,7 +700,13 @@
       <!-- Left: pixel grid canvas -->
       <div class="create-canvas-col">
         <canvas id="create-canvas" width="1024" height="1024"></canvas>
-        <div class="create-hint">Left-click draw · Right-click erase · Scroll canvas to pan</div>
+        <div style="display:flex;gap:5px;align-items:center;justify-content:center">
+          <button class="create-btn-sm" onclick="changeCreateZoom(0.5)" style="padding:1px 9px;font-size:1rem;line-height:1.4">−</button>
+          <span id="create-zoom-label" style="font-size:0.7rem;color:#888;min-width:28px;text-align:center">1×</span>
+          <button class="create-btn-sm" onclick="changeCreateZoom(2)" style="padding:1px 9px;font-size:1rem;line-height:1.4">+</button>
+          <button class="create-btn-sm" onclick="resetCreateZoom()" style="padding:1px 7px;font-size:0.65rem">Reset</button>
+        </div>
+        <div class="create-hint">Scroll/pinch to zoom · Pan tool to drag</div>
       </div>
 
       <!-- Right: controls -->
@@ -722,6 +728,7 @@
             <div class="ctool-btn active" id="ctool-pencil" onclick="setCreateTool('pencil')">✏️<span class="tip">Draw</span></div>
             <div class="ctool-btn" id="ctool-eraser" onclick="setCreateTool('eraser')">⬜<span class="tip">Erase</span></div>
             <div class="ctool-btn" id="ctool-fill"   onclick="setCreateTool('fill')">🪣<span class="tip">Fill</span></div>
+            <div class="ctool-btn" id="ctool-pan"    onclick="setCreateTool('pan')">🖐️<span class="tip">Pan</span></div>
           </div>
         </div>
 
@@ -1421,6 +1428,10 @@ let customGrid = new Uint8Array(CREATE_SIZE * CREATE_SIZE); // 0=white 1=black
 let createTool = 'pencil';
 let isCreateDrawing = false;
 let createDrawValue = 1;
+let createZoom = 1;
+let createPanX = 0, createPanY = 0; // offset in world pixels
+let isPanning = false;
+let panLastX = 0, panLastY = 0;
 
 const createCanvas = document.getElementById('create-canvas');
 const createCtx = createCanvas.getContext('2d');
@@ -1429,6 +1440,9 @@ const createCtx = createCanvas.getContext('2d');
 function renderCreateCanvas() {
   createCtx.fillStyle = '#ffffff';
   createCtx.fillRect(0, 0, createCanvas.width, createCanvas.height);
+
+  createCtx.save();
+  createCtx.setTransform(createZoom, 0, 0, createZoom, -createPanX * createZoom, -createPanY * createZoom);
 
   for (let y = 0; y < CREATE_SIZE; y++) {
     for (let x = 0; x < CREATE_SIZE; x++) {
@@ -1441,7 +1455,7 @@ function renderCreateCanvas() {
 
   // Grid lines
   createCtx.strokeStyle = '#dde';
-  createCtx.lineWidth = 0.5;
+  createCtx.lineWidth = 0.5 / createZoom;
   for (let i = 0; i <= CREATE_SIZE; i++) {
     createCtx.beginPath();
     createCtx.moveTo(i * CELL_PX, 0);
@@ -1452,6 +1466,38 @@ function renderCreateCanvas() {
     createCtx.lineTo(CREATE_SIZE * CELL_PX, i * CELL_PX);
     createCtx.stroke();
   }
+
+  createCtx.restore();
+}
+
+// ── Zoom helpers ────────────────────────────────
+function clampCreatePan() {
+  const worldSize = CREATE_SIZE * CELL_PX;
+  const visible = createCanvas.width / createZoom;
+  createPanX = Math.max(0, Math.min(worldSize - visible, createPanX));
+  createPanY = Math.max(0, Math.min(worldSize - visible, createPanY));
+}
+
+function zoomCreateAt(factor, canvasX, canvasY) {
+  const newZoom = Math.max(1, Math.min(16, createZoom * factor));
+  const worldX = canvasX / createZoom + createPanX;
+  const worldY = canvasY / createZoom + createPanY;
+  createZoom = newZoom;
+  createPanX = worldX - canvasX / createZoom;
+  createPanY = worldY - canvasY / createZoom;
+  clampCreatePan();
+  document.getElementById('create-zoom-label').textContent = createZoom.toFixed(createZoom < 2 ? 1 : 0) + '×';
+  renderCreateCanvas();
+}
+
+function changeCreateZoom(factor) {
+  zoomCreateAt(factor, createCanvas.width / 2, createCanvas.height / 2);
+}
+
+function resetCreateZoom() {
+  createZoom = 1; createPanX = 0; createPanY = 0;
+  document.getElementById('create-zoom-label').textContent = '1×';
+  renderCreateCanvas();
 }
 
 // ── Mouse drawing ───────────────────────────────
@@ -1459,13 +1505,31 @@ function getCellFromEvent(e) {
   const rect = createCanvas.getBoundingClientRect();
   const scaleX = createCanvas.width / rect.width;
   const scaleY = createCanvas.height / rect.height;
-  const cx = Math.floor((e.clientX - rect.left) * scaleX / CELL_PX);
-  const cy = Math.floor((e.clientY - rect.top)  * scaleY / CELL_PX);
-  return [Math.max(0, Math.min(CREATE_SIZE-1, cx)), Math.max(0, Math.min(CREATE_SIZE-1, cy))];
+  const canvasX = (e.clientX - rect.left) * scaleX;
+  const canvasY = (e.clientY - rect.top)  * scaleY;
+  const worldX = canvasX / createZoom + createPanX;
+  const worldY = canvasY / createZoom + createPanY;
+  return [
+    Math.max(0, Math.min(CREATE_SIZE-1, Math.floor(worldX / CELL_PX))),
+    Math.max(0, Math.min(CREATE_SIZE-1, Math.floor(worldY / CELL_PX)))
+  ];
+}
+
+function getCanvasXY(e) {
+  const rect = createCanvas.getBoundingClientRect();
+  return [
+    (e.clientX - rect.left) * (createCanvas.width  / rect.width),
+    (e.clientY - rect.top)  * (createCanvas.height / rect.height)
+  ];
 }
 
 createCanvas.addEventListener('mousedown', e => {
   e.preventDefault();
+  if (createTool === 'pan' || e.button === 1) {
+    isPanning = true; panLastX = e.clientX; panLastY = e.clientY;
+    createCanvas.style.cursor = 'grabbing';
+    return;
+  }
   isCreateDrawing = true;
   const [cx, cy] = getCellFromEvent(e);
   if (createTool === 'fill') {
@@ -1478,22 +1542,99 @@ createCanvas.addEventListener('mousedown', e => {
 });
 
 createCanvas.addEventListener('mousemove', e => {
+  if (isPanning) {
+    const rect = createCanvas.getBoundingClientRect();
+    const dx = (e.clientX - panLastX) * (createCanvas.width  / rect.width)  / createZoom;
+    const dy = (e.clientY - panLastY) * (createCanvas.height / rect.height) / createZoom;
+    createPanX -= dx; createPanY -= dy;
+    clampCreatePan(); panLastX = e.clientX; panLastY = e.clientY;
+    renderCreateCanvas(); return;
+  }
   if (!isCreateDrawing || createTool === 'fill') return;
   const [cx, cy] = getCellFromEvent(e);
   customGrid[cy * CREATE_SIZE + cx] = createDrawValue;
   renderCreateCanvas();
 });
 
-createCanvas.addEventListener('mouseup',    () => { isCreateDrawing = false; });
-createCanvas.addEventListener('mouseleave', () => { isCreateDrawing = false; });
+createCanvas.addEventListener('mouseup', () => {
+  isCreateDrawing = false; isPanning = false;
+  createCanvas.style.cursor = createTool === 'pan' ? 'grab' : 'crosshair';
+});
+createCanvas.addEventListener('mouseleave', () => { isCreateDrawing = false; isPanning = false; });
 createCanvas.addEventListener('contextmenu', e => e.preventDefault());
+
+createCanvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const [cx, cy] = getCanvasXY(e);
+  zoomCreateAt(e.deltaY < 0 ? 1.25 : 0.8, cx, cy);
+}, { passive: false });
+
+// ── Touch zoom & pan ────────────────────────────
+let lastTouchDist = 0, lastTouchMidX = 0, lastTouchMidY = 0;
+
+createCanvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (e.touches.length === 2) {
+    const dx = e.touches[1].clientX - e.touches[0].clientX;
+    const dy = e.touches[1].clientY - e.touches[0].clientY;
+    lastTouchDist = Math.hypot(dx, dy);
+    lastTouchMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    lastTouchMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+  } else if (e.touches.length === 1) {
+    if (createTool === 'pan') {
+      isPanning = true; panLastX = e.touches[0].clientX; panLastY = e.touches[0].clientY;
+    } else {
+      isCreateDrawing = true;
+      const fakeE = { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY, button: 0 };
+      const [cx, cy] = getCellFromEvent(fakeE);
+      if (createTool === 'fill') createFloodFill(cx, cy, 1);
+      else { createDrawValue = 1; customGrid[cy * CREATE_SIZE + cx] = 1; }
+      renderCreateCanvas();
+    }
+  }
+}, { passive: false });
+
+createCanvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (e.touches.length === 2) {
+    const dx = e.touches[1].clientX - e.touches[0].clientX;
+    const dy = e.touches[1].clientY - e.touches[0].clientY;
+    const dist = Math.hypot(dx, dy);
+    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    const rect = createCanvas.getBoundingClientRect();
+    const [cmx, cmy] = [
+      (midX - rect.left) * (createCanvas.width  / rect.width),
+      (midY - rect.top)  * (createCanvas.height / rect.height)
+    ];
+    zoomCreateAt(dist / lastTouchDist, cmx, cmy);
+    lastTouchDist = dist; lastTouchMidX = midX; lastTouchMidY = midY;
+  } else if (e.touches.length === 1) {
+    if (isPanning) {
+      const rect = createCanvas.getBoundingClientRect();
+      const dx = (e.touches[0].clientX - panLastX) * (createCanvas.width  / rect.width)  / createZoom;
+      const dy = (e.touches[0].clientY - panLastY) * (createCanvas.height / rect.height) / createZoom;
+      createPanX -= dx; createPanY -= dy; clampCreatePan();
+      panLastX = e.touches[0].clientX; panLastY = e.touches[0].clientY;
+      renderCreateCanvas();
+    } else if (isCreateDrawing && createTool !== 'fill') {
+      const fakeE = { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+      const [cx, cy] = getCellFromEvent(fakeE);
+      customGrid[cy * CREATE_SIZE + cx] = createDrawValue;
+      renderCreateCanvas();
+    }
+  }
+}, { passive: false });
+
+createCanvas.addEventListener('touchend', () => { isCreateDrawing = false; isPanning = false; });
 
 // ── Tools ───────────────────────────────────────
 function setCreateTool(name) {
   createTool = name;
-  ['pencil','eraser','fill'].forEach(t => {
+  ['pencil','eraser','fill','pan'].forEach(t => {
     document.getElementById(`ctool-${t}`).classList.toggle('active', t === name);
   });
+  createCanvas.style.cursor = name === 'pan' ? 'grab' : 'crosshair';
 }
 
 function clearCreateCanvas() {
@@ -1516,7 +1657,9 @@ function setCreateSize(n) {
     for (let x = 0; x < copySize; x++)
       newGrid[y * CREATE_SIZE + x] = oldGrid[y * oldSize + x];
   customGrid = newGrid;
+  createZoom = 1; createPanX = 0; createPanY = 0;
   document.getElementById('canvas-size-label').textContent = `${CREATE_SIZE}×${CREATE_SIZE}`;
+  document.getElementById('create-zoom-label').textContent = '1×';
   renderCreateCanvas();
 }
 
