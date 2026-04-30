@@ -504,13 +504,15 @@
       cursor: crosshair;
       display: block;
       image-rendering: pixelated;
-      width: min(380px, 45vw, 52vh);
-      height: min(380px, 45vw, 52vh);
+      width: 220px;
+      height: 220px;
+      max-width: 35vw;
+      max-height: 35vh;
     }
 
     @media (max-width: 600px) {
       .create-body { flex-direction: column; overflow-y: auto; }
-      #create-canvas { width: min(300px, 85vw); height: min(300px, 85vw); }
+      #create-canvas { width: 200px; height: 200px; max-width: 80vw; max-height: 35vh; }
     }
 
     .create-hint {
