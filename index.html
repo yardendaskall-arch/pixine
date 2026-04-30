@@ -493,13 +493,9 @@
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
-      align-items: flex-start;
+      align-items: center;
       gap: 8px;
-      overflow: auto;
-      max-height: 80vh;
     }
-    .create-canvas-col::-webkit-scrollbar { width: 4px; height: 4px; }
-    .create-canvas-col::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 2px; }
 
     #create-canvas {
       border: 2px solid #0f3460;
@@ -507,6 +503,10 @@
       cursor: crosshair;
       display: block;
       image-rendering: pixelated;
+      width: 512px;
+      height: 512px;
+      max-width: 80vw;
+      max-height: 80vw;
     }
 
     .create-hint {
@@ -699,6 +699,16 @@
 
       <!-- Right: controls -->
       <div class="create-controls-col">
+
+        <div>
+          <div class="create-section-label">Canvas size: <span id="canvas-size-label">16×16</span></div>
+          <input type="range" id="create-size-slider" min="8" max="64" step="1" value="16"
+            oninput="setCreateSize(+this.value)"
+            style="width:100%;accent-color:#e94560;cursor:pointer;margin:4px 0">
+          <div style="display:flex;justify-content:space-between;font-size:0.65rem;color:#888">
+            <span>8 (large pixels)</span><span>64 (fine detail)</span>
+          </div>
+        </div>
 
         <div>
           <div class="create-section-label">Drawing tool</div>
@@ -1398,8 +1408,8 @@ document.getElementById('gallery-modal').addEventListener('click', e => {
 // ═════════════════════════════════════════════
 // CUSTOM POKEMON DESIGNER
 // ═════════════════════════════════════════════
-const CREATE_SIZE = 16;
-const CELL_PX = 64; // pixels per cell on the create canvas
+let CREATE_SIZE = 16;
+let CELL_PX = 64; // pixels per cell on the create canvas (= 1024 / CREATE_SIZE)
 
 let customGrid = new Uint8Array(CREATE_SIZE * CREATE_SIZE); // 0=white 1=black
 let createTool = 'pencil';
@@ -1485,6 +1495,25 @@ function clearCreateCanvas() {
   renderCreateCanvas();
 }
 
+function setCreateSize(n) {
+  const newSize = Math.max(8, Math.min(64, Math.round(n)));
+  if (newSize === CREATE_SIZE) return;
+  const oldGrid = customGrid.slice();
+  const oldSize = CREATE_SIZE;
+  CREATE_SIZE = newSize;
+  CELL_PX = Math.floor(1024 / CREATE_SIZE);
+  createCanvas.width  = CREATE_SIZE * CELL_PX;
+  createCanvas.height = CREATE_SIZE * CELL_PX;
+  const newGrid = new Uint8Array(CREATE_SIZE * CREATE_SIZE);
+  const copySize = Math.min(oldSize, CREATE_SIZE);
+  for (let y = 0; y < copySize; y++)
+    for (let x = 0; x < copySize; x++)
+      newGrid[y * CREATE_SIZE + x] = oldGrid[y * oldSize + x];
+  customGrid = newGrid;
+  document.getElementById('canvas-size-label').textContent = `${CREATE_SIZE}×${CREATE_SIZE}`;
+  renderCreateCanvas();
+}
+
 // ── Flood fill on grid ──────────────────────────
 function createFloodFill(startX, startY, fillVal) {
   const target = customGrid[startY * CREATE_SIZE + startX];
@@ -1530,12 +1559,13 @@ async function generateWithAI() {
   btn.disabled = true;
   setGenStatus('Generating… this may take a few seconds', 'loading');
 
-  const prompt = `You are a pixel art generator. Create a 16x16 pixel art Pokemon sprite of: ${desc}
+  const totalPixels = CREATE_SIZE * CREATE_SIZE;
+  const prompt = `You are a pixel art generator. Create a ${CREATE_SIZE}x${CREATE_SIZE} pixel art Pokemon sprite of: ${desc}
 
-Output ONLY a JSON array of exactly 256 integers (no other text).
+Output ONLY a JSON array of exactly ${totalPixels} integers (no other text).
 Rules:
 - 0 = white/empty pixel, 1 = black pixel
-- The array is row-by-row, left-to-right, top-to-bottom (first 16 values = top row)
+- The array is row-by-row, left-to-right, top-to-bottom (first ${CREATE_SIZE} values = top row)
 - Draw a clear recognizable Pokemon-like silhouette with outline and some interior detail
 - Leave 1 pixel of empty border around all edges
 
@@ -1579,10 +1609,10 @@ Start your response with [ and end with ]. Nothing else.`;
     try { arr = JSON.parse(text.slice(startIdx, endIdx + 1)); }
     catch { throw new Error('Could not parse pixel array. Try again.'); }
 
-    // If too short/long, try to pad/trim to 1024
     if (!Array.isArray(arr)) throw new Error('Response was not an array. Try again.');
-    while (arr.length < 256) arr.push(0);
-    if (arr.length > 256) arr = arr.slice(0, 256);
+    const need = CREATE_SIZE * CREATE_SIZE;
+    while (arr.length < need) arr.push(0);
+    if (arr.length > need) arr = arr.slice(0, need);
 
     customGrid = new Uint8Array(arr.map(v => (v ? 1 : 0)));
     renderCreateCanvas();
