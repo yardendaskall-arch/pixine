@@ -1708,17 +1708,41 @@ async function generateWithAI() {
   btn.disabled = true;
   setGenStatus('Generating… this may take a few seconds', 'loading');
 
-  const totalPixels = CREATE_SIZE * CREATE_SIZE;
-  const prompt = `You are a pixel art generator. Create a ${CREATE_SIZE}x${CREATE_SIZE} pixel art Pokemon sprite of: ${desc}
+  const S = CREATE_SIZE;
+  const prompt = `You are a pixel art sprite artist. Draw a ${S}×${S} black-and-white pixel art sprite of: ${desc}
 
-Output ONLY a JSON array of exactly ${totalPixels} integers (no other text).
+Output EXACTLY ${S} lines. Each line must have EXACTLY ${S} characters.
+Use only these two characters:
+  # = filled/black pixel
+  . = empty/white pixel
+
 Rules:
-- 0 = white/empty pixel, 1 = black pixel
-- The array is row-by-row, left-to-right, top-to-bottom (first ${CREATE_SIZE} values = top row)
-- Draw a clear recognizable Pokemon-like silhouette with outline and some interior detail
-- Leave 1 pixel of empty border around all edges
+- Leave the outermost border (row 0, row ${S-1}, col 0, col ${S-1}) mostly empty
+- Draw a clear, recognizable silhouette with visible shape and some interior detail
+- For creatures: head near top, body in middle, legs/feet near bottom
+- Make it look like a cute Pokemon character — stylized, not realistic
+- The shape must be contiguous and recognizable — no random scattered dots
 
-Start your response with [ and end with ]. Nothing else.`;
+Example of a 16×16 sitting cat:
+................
+......####......
+....########....
+....#.##.##.#...
+....########....
+.....######.....
+....########....
+...##########...
+...#.########...
+...############.
+....##....##....
+....##....##....
+....##....##....
+...####..####...
+................
+................
+
+Now draw: ${desc}
+Output only the ${S} lines, nothing else.`;
 
   try {
     const res = await fetch('/api/generate', {
@@ -1734,36 +1758,30 @@ Start your response with [ and end with ]. Nothing else.`;
 
     const data = await res.json();
 
-    // Gemini 2.5 thinking models return multiple parts — join all non-thought text parts
     const parts = data.candidates?.[0]?.content?.parts || [];
     let text = parts
       .filter(p => !p.thought && typeof p.text === 'string')
       .map(p => p.text)
       .join('');
 
-    // Strip markdown code fences
-    text = text.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '');
+    // Strip markdown fences and extra whitespace
+    text = text.replace(/```[^\n]*\n?/gi, '').replace(/```/g, '').trim();
 
-    // Find the JSON array by walking brackets (handles very long arrays)
-    const startIdx = text.indexOf('[');
-    if (startIdx === -1) throw new Error('No array found in response. Try again.');
-    let depth = 0, endIdx = -1;
-    for (let i = startIdx; i < text.length; i++) {
-      if (text[i] === '[') depth++;
-      else if (text[i] === ']') { if (--depth === 0) { endIdx = i; break; } }
-    }
-    if (endIdx === -1) throw new Error('Array not closed in response. Try again.');
+    // Extract lines that look like pixel art (only # . and spaces)
+    const artLines = text.split('\n')
+      .map(l => l.replace(/[^.#]/g, ''))   // keep only . and #
+      .filter(l => l.length > 0)
+      .map(l => l.slice(0, S).padEnd(S, '.'));
 
-    let arr;
-    try { arr = JSON.parse(text.slice(startIdx, endIdx + 1)); }
-    catch { throw new Error('Could not parse pixel array. Try again.'); }
+    if (artLines.length === 0) throw new Error('No pixel art found in response. Try again.');
 
-    if (!Array.isArray(arr)) throw new Error('Response was not an array. Try again.');
-    const need = CREATE_SIZE * CREATE_SIZE;
-    while (arr.length < need) arr.push(0);
-    if (arr.length > need) arr = arr.slice(0, need);
+    // Pad or trim to exactly S rows
+    while (artLines.length < S) artLines.push('.'.repeat(S));
+    artLines.length = S;
 
-    customGrid = new Uint8Array(arr.map(v => (v ? 1 : 0)));
+    const arr = artLines.flatMap(line => [...line].map(c => c === '#' ? 1 : 0));
+
+    customGrid = new Uint8Array(arr);
     renderCreateCanvas();
     setGenStatus('Done! Edit it or click "Color This Pokemon →"', 'success');
   } catch (err) {
