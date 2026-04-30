@@ -493,9 +493,13 @@
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
-      align-items: center;
+      align-items: flex-start;
       gap: 8px;
+      overflow: auto;
+      max-height: 80vh;
     }
+    .create-canvas-col::-webkit-scrollbar { width: 4px; height: 4px; }
+    .create-canvas-col::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 2px; }
 
     #create-canvas {
       border: 2px solid #0f3460;
@@ -689,7 +693,7 @@
 
       <!-- Left: pixel grid canvas -->
       <div class="create-canvas-col">
-        <canvas id="create-canvas" width="448" height="448"></canvas>
+        <canvas id="create-canvas" width="1024" height="1024"></canvas>
         <div class="create-hint">Left-click draw · Right-click erase · Scroll canvas to pan</div>
       </div>
 
@@ -1395,7 +1399,7 @@ document.getElementById('gallery-modal').addEventListener('click', e => {
 // CUSTOM POKEMON DESIGNER
 // ═════════════════════════════════════════════
 const CREATE_SIZE = 16;
-const CELL_PX = 28; // pixels per cell on the create canvas
+const CELL_PX = 64; // pixels per cell on the create canvas
 
 let customGrid = new Uint8Array(CREATE_SIZE * CREATE_SIZE); // 0=white 1=black
 let createTool = 'pencil';
