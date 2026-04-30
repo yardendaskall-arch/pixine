@@ -490,7 +490,8 @@
     }
 
     .create-canvas-col {
-      flex-shrink: 0;
+      flex-shrink: 1;
+      min-width: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -503,10 +504,13 @@
       cursor: crosshair;
       display: block;
       image-rendering: pixelated;
-      width: 512px;
-      height: 512px;
-      max-width: 80vw;
-      max-height: 80vw;
+      width: min(380px, 45vw, 52vh);
+      height: min(380px, 45vw, 52vh);
+    }
+
+    @media (max-width: 600px) {
+      .create-body { flex-direction: column; overflow-y: auto; }
+      #create-canvas { width: min(300px, 85vw); height: min(300px, 85vw); }
     }
 
     .create-hint {
