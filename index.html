@@ -927,8 +927,18 @@ function processSprite(img) {
   octx.drawImage(img, 0, 0);
   const srcData = octx.getImageData(0, 0, sw, sh).data;
 
-  // Convert to greyscale with black outlines:
-  // transparent → white, dark pixels → black outline, colored pixels → greyscale shade
+  // Convert to greyscale with black outlines.
+  // First pass: find the luminance range of the sprite so dark Pokemon
+  // like Coalossal still show internal shading instead of turning all-black.
+  let minL = 255, maxL = 0;
+  for (let i = 0; i < srcData.length; i += 4) {
+    if (srcData[i+3] < 64) continue;
+    const l = 0.299*srcData[i] + 0.587*srcData[i+1] + 0.114*srcData[i+2];
+    if (l < minL) minL = l;
+    if (l > maxL) maxL = l;
+  }
+  const lRange = Math.max(60, maxL - minL); // min range of 60 prevents over-amplification
+
   const bwCanvas = document.createElement('canvas');
   bwCanvas.width = sw;
   bwCanvas.height = sh;
@@ -936,17 +946,16 @@ function processSprite(img) {
   const bwImg = bwCtx.createImageData(sw, sh);
   for (let i = 0; i < srcData.length; i += 4) {
     const r = srcData[i], g = srcData[i+1], b = srcData[i+2], a = srcData[i+3];
-    // Transparent pixels → white background
     if (a < 64) {
       bwImg.data[i]   = 255;
       bwImg.data[i+1] = 255;
       bwImg.data[i+2] = 255;
       bwImg.data[i+3] = 255;
     } else {
-      // Luminance-weighted greyscale
-      const grey = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-      // Dark pixels are outlines → keep black; lighter pixels → their grey shade
-      const out = grey < 85 ? 0 : grey;
+      const raw = 0.299*r + 0.587*g + 0.114*b;
+      // Normalize to 0-255 within this sprite's luminance range
+      const grey = Math.round((raw - minL) / lRange * 255);
+      const out = grey < 60 ? 0 : Math.min(255, grey);
       bwImg.data[i]   = out;
       bwImg.data[i+1] = out;
       bwImg.data[i+2] = out;
