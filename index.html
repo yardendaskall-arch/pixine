@@ -984,7 +984,6 @@ function applyPaintLayer() {
           const cy = ly * zoomLevel + dy;
           if (cx >= canvasW || cy >= canvasH) continue;
           const idx = (cy * canvasW + cx) * 4;
-          if (outlineData[idx] === 0) continue; // don't paint over outlines
           pixelData[idx]   = paintLayer[li];
           pixelData[idx+1] = paintLayer[li+1];
           pixelData[idx+2] = paintLayer[li+2];
@@ -1212,6 +1211,15 @@ function floodFill(startX, startY, hexColor) {
     pixelData[idx+1] = fillG;
     pixelData[idx+2] = fillB;
     pixelData[idx+3] = 255;
+
+    // Also record in paintLayer so zoom changes don't erase the fill
+    const lx = Math.floor(x / zoomLevel);
+    const ly = Math.floor(y / zoomLevel);
+    const li = (ly * spriteW + lx) * 4;
+    paintLayer[li]   = fillR;
+    paintLayer[li+1] = fillG;
+    paintLayer[li+2] = fillB;
+    paintLayer[li+3] = 255;
 
     // 4-connected neighbors
     for (const [nx, ny] of [[x-1,y],[x+1,y],[x,y-1],[x,y+1]]) {
