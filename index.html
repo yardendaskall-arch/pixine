@@ -1726,47 +1726,33 @@ async function generateWithAI() {
   setGenStatus('Generating… this may take a few seconds', 'loading');
 
   const S = CREATE_SIZE;
-  const prompt = `You are a pixel art sprite artist for a Pokemon game. Your job is to create cute, recognizable Pokemon-style sprites.
+  const prompt = `You are a pixel art artist making a Pokemon-style game sprite.
 
-TASK: Create a ${S}×${S} Pokemon-style sprite of: "${desc}"
+Subject: "${desc}"
+Output grid: ${S} columns wide × ${S} rows tall
 
-POKEMON STYLE GUIDE (very important):
-- Pokemon are CUTE and STYLIZED — not realistic. Exaggerate features.
-- BIG ROUNDED HEAD — the head should take up about 40-50% of the total height
-- LARGE EXPRESSIVE EYES — 2-3 pixels wide, clearly visible, with a small highlight dot (.)
-- CHUNKY SOLID BODY — thick outlines, no thin 1-pixel lines
-- SIMPLE LIMBS — short stubby arms/legs, not detailed
-- CLEAR SILHOUETTE — recognizable shape even at tiny size
-- If given an animal (dog, cat, bird…): make it look like THAT animal's Pokemon form — rounder, cuter, more cartoon-like
-- If given an element or object: give it eyes and a cute personality
+═══ OUTPUT FORMAT (non-negotiable) ═══
+• Exactly ${S} lines
+• Every single line has exactly ${S} characters — count each one before writing it
+• Only two characters allowed: # (black filled pixel) or . (empty pixel)
+• Zero other text — no labels, no explanations, just the ${S} lines
 
-OUTPUT FORMAT — follow strictly:
-- EXACTLY ${S} lines
-- EXACTLY ${S} characters per line (count every line!)
-- Only # (black/filled) or . (empty/white)
-- Nothing else — no labels, no spaces between chars, no line numbers
+═══ POKEMON ART STYLE ═══
+• Make it look like a real Pokemon — cute, cartoon, stylized, NOT realistic
+• BIG ROUND HEAD: centered, fills roughly the top 40% of the sprite height
+• LARGE EYES: clearly visible — use "##" or "###" sized dots in the face
+• CHUBBY ROUNDED BODY below the head, wider than the neck
+• SHORT STUBBY LEGS/FEET at the very bottom
+• 1-2 pixel empty border on all four edges (first/last rows and columns = dots)
+• THICK OUTLINES — every shape edge should be 2+ pixels thick, no thin lines
+• Every filled pixel must touch at least one neighbor (no floating lone pixels)
 
-EXAMPLE — a 16×16 Pokemon-style round creature with big eyes and tiny arms:
-................
-......####......
-....########....
-...##########...
-..############..
-..##.####.##....
-..##.####.##....
-..############..
-...##########...
-....########....
-...####.####....
-..##..###..##...
-..##.......##...
-...#########....
-....##...##.....
-................
+═══ SIZE REMINDER ═══
+Each line = ${S} characters. Not 16. Not 8. Exactly ${S}.
+Count: ${'#'.repeat(S)} ← this is what ${S} characters looks like.
 
-Now draw "${desc}" as a ${S}×${S} Pokemon-style sprite.
-Plan the layout: big head at top, body below, tiny legs/feet at bottom. Make it CUTE.
-Output ONLY the ${S} lines of ${S} characters.`;
+Now output the ${S}×${S} Pokemon sprite for "${desc}":`;
+
 
   try {
     const res = await fetch('/api/generate', {
