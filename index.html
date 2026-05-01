@@ -713,8 +713,8 @@
       <div class="create-controls-col">
 
         <div>
-          <div class="create-section-label">Canvas size: <span id="canvas-size-label">16×16</span></div>
-          <input type="range" id="create-size-slider" min="8" max="64" step="1" value="16"
+          <div class="create-section-label">Canvas size: <span id="canvas-size-label">32×32</span></div>
+          <input type="range" id="create-size-slider" min="8" max="64" step="1" value="32"
             oninput="setCreateSize(+this.value)"
             style="width:100%;accent-color:#e94560;cursor:pointer;margin:4px 0">
           <div style="display:flex;justify-content:space-between;font-size:0.65rem;color:#888">
@@ -1421,8 +1421,8 @@ document.getElementById('gallery-modal').addEventListener('click', e => {
 // ═════════════════════════════════════════════
 // CUSTOM POKEMON DESIGNER
 // ═════════════════════════════════════════════
-let CREATE_SIZE = 16;
-let CELL_PX = 64; // pixels per cell on the create canvas (= 1024 / CREATE_SIZE)
+let CREATE_SIZE = 32;
+let CELL_PX = 32; // pixels per cell on the create canvas (= 1024 / CREATE_SIZE)
 
 let customGrid = new Uint8Array(CREATE_SIZE * CREATE_SIZE); // 0=white 1=black
 let createTool = 'pencil';
@@ -1709,40 +1709,43 @@ async function generateWithAI() {
   setGenStatus('Generating… this may take a few seconds', 'loading');
 
   const S = CREATE_SIZE;
-  const prompt = `You are a pixel art sprite artist. Draw a ${S}×${S} black-and-white pixel art sprite of: ${desc}
+  const prompt = `You are a professional pixel art sprite artist making sprites for a Pokemon-style game.
 
-Output EXACTLY ${S} lines. Each line must have EXACTLY ${S} characters.
-Use only these two characters:
-  # = filled/black pixel
-  . = empty/white pixel
+TASK: Draw a ${S}×${S} pixel art sprite of: "${desc}"
 
-Rules:
-- Leave the outermost border (row 0, row ${S-1}, col 0, col ${S-1}) mostly empty
-- Draw a clear, recognizable silhouette with visible shape and some interior detail
-- For creatures: head near top, body in middle, legs/feet near bottom
-- Make it look like a cute Pokemon character — stylized, not realistic
-- The shape must be contiguous and recognizable — no random scattered dots
+OUTPUT RULES (follow exactly):
+- Print EXACTLY ${S} lines
+- Every line has EXACTLY ${S} characters — count carefully
+- Only two characters allowed: # (black pixel) or . (empty pixel)
+- No spaces between characters, no line numbers, no explanations
 
-Example of a 16×16 sitting cat:
+DRAWING TIPS:
+- Keep a 1-2 pixel empty border on all edges
+- Make the silhouette SOLID and CHUNKY — use 2-4 pixel thick lines so details show up
+- No lone floating pixels — every filled pixel should touch at least one other
+- For animals: head fills top third, torso fills middle third, legs fill bottom third
+- Eyes = two # pixels side by side with one . gap between them
+- Make it cute and recognizable, like a Pokemon
+
+REFERENCE (16×16 dog, front-facing — study the proportions):
 ................
-......####......
-....########....
-....#.##.##.#...
-....########....
 .....######.....
 ....########....
 ...##########...
-...#.########...
-...############.
-....##....##....
-....##....##....
-....##....##....
-...####..####...
+...#.####.#.#...
+...##.##.##.....
+...##########...
+....########....
+...##########...
+..############..
+..##..####..##..
+..##..####..##..
+..###......###..
+..##........##..
 ................
 ................
 
-Now draw: ${desc}
-Output only the ${S} lines, nothing else.`;
+Now output the ${S}×${S} sprite for "${desc}". Think carefully about the shape before you start. Output ONLY the pixel art lines.`;
 
   try {
     const res = await fetch('/api/generate', {
