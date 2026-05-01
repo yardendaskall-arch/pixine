@@ -1726,33 +1726,35 @@ async function generateWithAI() {
   setGenStatus('Generating… this may take a few seconds', 'loading');
 
   const S = CREATE_SIZE;
-  const prompt = `You are a pixel art artist making a Pokemon-style game sprite.
+  // Pre-compute sensible anatomy positions so AI just plugs them in
+  const hx = Math.round(S * 0.5),  hy = Math.round(S * 0.3);
+  const hr = Math.round(S * 0.22);
+  const bx = Math.round(S * 0.5),  by = Math.round(S * 0.63);
+  const brx = Math.round(S * 0.18), bry = Math.round(S * 0.14);
 
-Subject: "${desc}"
-Output grid: ${S} columns wide × ${S} rows tall
+  const prompt = `You are designing a cute Pokemon character. Output ONLY shape drawing commands — no text.
 
-═══ OUTPUT FORMAT (non-negotiable) ═══
-• Exactly ${S} lines
-• Every single line has exactly ${S} characters — count each one before writing it
-• Only two characters allowed: # (black filled pixel) or . (empty pixel)
-• Zero other text — no labels, no explanations, just the ${S} lines
+Subject: "${desc}" (draw as a cute, stylized Pokemon — not realistic)
+Canvas: ${S}×${S} pixels. Origin (0,0) = top-left corner.
 
-═══ POKEMON ART STYLE ═══
-• Make it look like a real Pokemon — cute, cartoon, stylized, NOT realistic
-• BIG ROUND HEAD: centered, fills roughly the top 40% of the sprite height
-• LARGE EYES: clearly visible — use "##" or "###" sized dots in the face
-• CHUBBY ROUNDED BODY below the head, wider than the neck
-• SHORT STUBBY LEGS/FEET at the very bottom
-• 1-2 pixel empty border on all four edges (first/last rows and columns = dots)
-• THICK OUTLINES — every shape edge should be 2+ pixels thick, no thin lines
-• Every filled pixel must touch at least one neighbor (no floating lone pixels)
+COMMANDS (one per line, numbers are integers):
+  fill_circle  cx cy r          — filled circle
+  fill_oval    cx cy rx ry      — filled oval
+  fill_rect    x1 y1 x2 y2     — filled rectangle
+  erase_circle cx cy r          — white hole (use for eyes, nostrils, mouth)
+  erase_rect   x1 y1 x2 y2     — white rectangle hole
 
-═══ SIZE REMINDER ═══
-Each line = ${S} characters. Not 16. Not 8. Exactly ${S}.
-Count: ${'#'.repeat(S)} ← this is what ${S} characters looks like.
+POKEMON BODY LAYOUT for ${S}×${S}:
+  Big round head:  fill_circle ${hx} ${hy} ${hr}
+  Chubby body:     fill_oval ${bx} ${by} ${brx} ${bry}
+  Left eye:        erase_circle ${hx-Math.round(hr*0.35)} ${hy-Math.round(hr*0.1)} 2
+  Right eye:       erase_circle ${hx+Math.round(hr*0.35)} ${hy-Math.round(hr*0.1)} 2
+  Left leg:        fill_rect ${hx-Math.round(S*0.18)} ${Math.round(S*0.77)} ${hx-Math.round(S*0.06)} ${Math.round(S*0.9)}
+  Right leg:       fill_rect ${hx+Math.round(S*0.06)} ${Math.round(S*0.77)} ${hx+Math.round(S*0.18)} ${Math.round(S*0.9)}
 
-Now output the ${S}×${S} Pokemon sprite for "${desc}":`;
-
+START with that layout, then add features specific to "${desc}" (ears, tail, wings, horns, markings etc).
+Keep all coordinates within 2-${S-3}.
+Output 8-16 shape commands ONLY:`;
 
   try {
     const res = await fetch('/api/generate', {
@@ -1767,31 +1769,17 @@ Now output the ${S}×${S} Pokemon sprite for "${desc}":`;
     }
 
     const data = await res.json();
-
     const parts = data.candidates?.[0]?.content?.parts || [];
     let text = parts
       .filter(p => !p.thought && typeof p.text === 'string')
       .map(p => p.text)
       .join('');
 
-    // Strip markdown fences and extra whitespace
     text = text.replace(/```[^\n]*\n?/gi, '').replace(/```/g, '').trim();
 
-    // Extract lines that look like pixel art (only # . and spaces)
-    const artLines = text.split('\n')
-      .map(l => l.replace(/[^.#]/g, ''))   // keep only . and #
-      .filter(l => l.length > 0)
-      .map(l => l.slice(0, S).padEnd(S, '.'));
-
-    if (artLines.length === 0) throw new Error('No pixel art found in response. Try again.');
-
-    // Pad or trim to exactly S rows
-    while (artLines.length < S) artLines.push('.'.repeat(S));
-    artLines.length = S;
-
-    const arr = artLines.flatMap(line => [...line].map(c => c === '#' ? 1 : 0));
-
-    customGrid = new Uint8Array(arr);
+    const grid = renderShapes(text, S);
+    if (!grid.some(v => v === 1)) throw new Error('No shapes found in response. Try again.');
+    customGrid = grid;
     renderCreateCanvas();
     setGenStatus('Done! Edit it or click "Color This Pokemon →"', 'success');
   } catch (err) {
@@ -1800,6 +1788,46 @@ Now output the ${S}×${S} Pokemon sprite for "${desc}":`;
     btn.disabled = false;
   }
 }
+
+// ── Shape renderer ───────────────────────────────
+function renderShapes(text, S) {
+  const grid = new Uint8Array(S * S);
+
+  function px(x, y, v) {
+    x = Math.round(x); y = Math.round(y);
+    if (x >= 0 && x < S && y >= 0 && y < S) grid[y * S + x] = v;
+  }
+  function circle(cx, cy, r, v) {
+    const r2 = r * r;
+    for (let y = Math.ceil(cy-r); y <= cy+r; y++)
+      for (let x = Math.ceil(cx-r); x <= cx+r; x++)
+        if ((x-cx)**2 + (y-cy)**2 <= r2) px(x, y, v);
+  }
+  function oval(cx, cy, rx, ry, v) {
+    for (let y = Math.ceil(cy-ry); y <= cy+ry; y++)
+      for (let x = Math.ceil(cx-rx); x <= cx+rx; x++)
+        if ((x-cx)**2/(rx*rx) + (y-cy)**2/(ry*ry) <= 1) px(x, y, v);
+  }
+  function rect(x1, y1, x2, y2, v) {
+    for (let y = Math.min(y1,y2); y <= Math.max(y1,y2); y++)
+      for (let x = Math.min(x1,x2); x <= Math.max(x1,x2); x++) px(x, y, v);
+  }
+
+  for (const line of text.split('\n')) {
+    const tok = line.trim().toLowerCase().replace(/[^a-z0-9_.\-\s]/g, '').split(/\s+/);
+    const cmd = tok[0];
+    const n = tok.slice(1).map(Number);
+    if (!cmd || n.some(isNaN)) continue;
+    if (cmd === 'fill_circle'  && n.length >= 3) circle(n[0],n[1],n[2], 1);
+    if (cmd === 'fill_oval'    && n.length >= 4) oval  (n[0],n[1],n[2],n[3], 1);
+    if (cmd === 'fill_rect'    && n.length >= 4) rect  (n[0],n[1],n[2],n[3], 1);
+    if (cmd === 'erase_circle' && n.length >= 3) circle(n[0],n[1],n[2], 0);
+    if (cmd === 'erase_oval'   && n.length >= 4) oval  (n[0],n[1],n[2],n[3], 0);
+    if (cmd === 'erase_rect'   && n.length >= 4) rect  (n[0],n[1],n[2],n[3], 0);
+  }
+  return grid;
+}
+
 
 function setGenStatus(msg, type) {
   const el = document.getElementById('generate-status');
