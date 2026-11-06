@@ -1723,7 +1723,9 @@ async function generateWithAI() {
 
   const btn = document.getElementById('generate-btn');
   btn.disabled = true;
-  setGenStatus('Generating… this may take a few seconds', 'loading');
+  setGenStatus('Did you really think you could have ai in a paint app???', 'error');
+  btn.disabled = false;
+  return;
 
   const S = CREATE_SIZE;
   // Pre-compute sensible anatomy positions so AI just plugs them in
